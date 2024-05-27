@@ -15,6 +15,9 @@ switch (command) {
     case "hash-file":
         hashBlobFile(process.argv[4]);
         break;
+    case "ls-tree":
+        listTreeObject(process.argv[4])
+        break;
     default:
         throw new Error(`Unknown command ${command}`);
 }
@@ -48,8 +51,26 @@ async function hashBlobFile(filePath) {
     const hash = crypto.createHash("sha1");
     hash.update(dataZipped)
     const hashValue = hash.digest('hex')
-    console.log(hashValue)
+    //console.log(hashValue)
 
     fs.mkdirSync(path.join(__dirname, '.git', 'objects', hashValue.slice(0, 2)), { recursive: true })
     fs.writeFileSync(path.join(__dirname, '.git', 'objects', hashValue.slice(0, 2), hashValue.slice(2)), dataZipped)
+}
+
+async function listTreeObject(hash) {
+    const flag = process.argv[3]
+
+    if (flag == '--name-only') {
+
+        const content = await fs.readFileSync(path.join(__dirname, ".git", "objects", hash.slice(0, 2), hash.slice(2)))
+        const dataUnzipped = zlib.inflateSync(content);
+
+        const [header, data] = dataUnzipped.toString().split('\0');
+        //console.log(data)
+        data.split('\n').forEach(line => {
+            const items = line.split(' ')
+            //console.log(items[items.length - 1])
+            process.stdout.write(items[items.length - 1] + '\n')
+        });
+    }
 }
