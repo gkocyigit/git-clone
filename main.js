@@ -18,6 +18,9 @@ switch (command) {
     case "ls-tree":
         listTreeObject(process.argv[4])
         break;
+    case "write-tree":
+        writeTreeObject(__dirname)
+        break;
     default:
         throw new Error(`Unknown command ${command}`);
 }
@@ -55,6 +58,7 @@ async function hashBlobFile(filePath) {
 
     fs.mkdirSync(path.join(__dirname, '.git', 'objects', hashValue.slice(0, 2)), { recursive: true })
     fs.writeFileSync(path.join(__dirname, '.git', 'objects', hashValue.slice(0, 2), hashValue.slice(2)), dataZipped)
+    return hashValue;
 }
 
 async function listTreeObject(hash) {
@@ -73,4 +77,41 @@ async function listTreeObject(hash) {
             process.stdout.write(items[items.length - 1] + '\n')
         });
     }
+}
+
+async function writeTreeObject(treePath) {
+    let content = "";
+    const items = fs.readdirSync(treePath)
+    for (const item of items) {
+        if (item === ".git") {
+            continue
+        }
+        const itemPath = treePath + "/" + item
+        const itemDescription = fs.lstatSync(itemPath)
+        let hash = ""
+
+        if (itemDescription.isFile()) {
+            hash = await hashBlobFile(itemPath)
+            content += `\n100644 ${item} ${hash}`
+        } else if (itemDescription.isDirectory()) {
+            hash = await writeTreeObject(itemPath)
+            content += `\n040000 ${item} ${hash}`
+        }
+    }
+    content = content.substring(1)
+    const contentLength = content.length
+    const dataWithHeader = Buffer.from('tree ' + contentLength + '\0' + content)
+    const dataZipped = zlib.deflateSync(dataWithHeader);
+
+    const hash = crypto.createHash("sha1");
+    hash.update(dataZipped)
+    const hashValue = hash.digest('hex')
+
+    fs.mkdirSync(path.join(__dirname, '.git', 'objects', hashValue.slice(0, 2)), { recursive: true })
+    fs.writeFileSync(path.join(__dirname, '.git', 'objects', hashValue.slice(0, 2), hashValue.slice(2)), dataZipped)
+
+    if (__dirname === treePath) {
+        console.log(hashValue)
+    }
+    return hashValue;
 }
